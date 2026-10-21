@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DataVision AI — Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+</head>
+<body class="dash-body">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand"><i class="fa-solid fa-chart-column"></i> DataVision <span>AI</span></div>
+  <nav class="sb-nav">
+    <a href="#sec-overview"   class="sb-link active" data-section="overview">
+      <i class="fa-solid fa-gauge-high"></i> Overview
+    </a>
+    <a href="#sec-quality"    class="sb-link" data-section="quality">
+      <i class="fa-solid fa-shield-halved"></i> Data Quality
+    </a>
+    <a href="#sec-stats"      class="sb-link" data-section="stats">
+      <i class="fa-solid fa-calculator"></i> Statistics
+    </a>
+    <a href="#sec-charts"     class="sb-link" data-section="charts">
+      <i class="fa-solid fa-chart-bar"></i> Visualizations
+    </a>
+    <a href="#sec-clustering" class="sb-link" data-section="clustering">
+      <i class="fa-solid fa-circle-nodes"></i> ML Clustering
+    </a>
+    <a href="#sec-insights"   class="sb-link" data-section="insights">
+      <i class="fa-solid fa-brain"></i> AI Insights
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('reset') }}" class="btn-reset">
+      <i class="fa-solid fa-arrow-left"></i> New Dataset
+    </a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="dash-main" id="dashMain">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <button class="sidebar-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i></button>
+    <div class="tb-info">
+      <i class="fa-solid fa-file-csv"></i>
+      <strong>{{ filename }}</strong>
+    </div>
+    <div class="tb-stats">
+      <span class="tb-badge"><i class="fa-solid fa-table-rows"></i> {{ stats.rows }} rows</span>
+      <span class="tb-badge"><i class="fa-solid fa-table-columns"></i> {{ stats.cols }} cols</span>
+      <span class="tb-badge"><i class="fa-solid fa-memory"></i> {{ stats.memory }}</span>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 1 — OVERVIEW
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-overview">
+    <div class="section-title">
+      <i class="fa-solid fa-gauge-high"></i> Dataset Overview
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--accent:#6366f1">
+        <div class="kpi-icon"><i class="fa-solid fa-table-rows"></i></div>
+        <div class="kpi-val">{{ stats.rows }}</div>
+        <div class="kpi-label">Total Rows</div>
+      </div>
+      <div class="kpi-card" style="--accent:#06b6d4">
+        <div class="kpi-icon"><i class="fa-solid fa-table-columns"></i></div>
+        <div class="kpi-val">{{ stats.cols }}</div>
+        <div class="kpi-label">Columns</div>
+      </div>
+      <div class="kpi-card" style="--accent:#10b981">
+        <div class="kpi-icon"><i class="fa-solid fa-hashtag"></i></div>
+        <div class="kpi-val">{{ stats.numeric }}</div>
+        <div class="kpi-label">Numeric Columns</div>
+      </div>
+      <div class="kpi-card" style="--accent:#f59e0b">
+        <div class="kpi-icon"><i class="fa-solid fa-tag"></i></div>
+        <div class="kpi-val">{{ stats.categorical }}</div>
+        <div class="kpi-label">Categorical Columns</div>
+      </div>
+      <div class="kpi-card" style="--accent:#ef4444">
+        <div class="kpi-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
+        <div class="kpi-val">{{ stats.missing }}</div>
+        <div class="kpi-label">Missing Values</div>
+      </div>
+      <div class="kpi-card" style="--accent:#8b5cf6">
+        <div class="kpi-icon"><i class="fa-solid fa-copy"></i></div>
+        <div class="kpi-val">{{ stats.duplicates }}</div>
+        <div class="kpi-label">Duplicate Rows</div>
+      </div>
+    </div>
+
+    <!-- Data Preview -->
+    <div class="card">
+      <div class="card-header">
+        <i class="fa-solid fa-eye"></i> Data Preview <span class="card-sub">(first 10 rows)</span>
+      </div>
+      <div class="table-scroll">
+        {{ preview | safe }}
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 2 — DATA QUALITY
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-quality">
+    <div class="section-title"><i class="fa-solid fa-shield-halved"></i> Data Quality Analysis</div>
+    <div class="card">
+      <div class="card-header"><i class="fa-solid fa-list-check"></i> Column-level Quality Report</div>
+      <div id="qualityTable"><div class="loader-wrap"><div class="loader"></div><p>Analysing…</p></div></div>
+      <div id="qualityDupes" class="dupe-badge" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 3 — STATISTICS
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-stats">
+    <div class="section-title"><i class="fa-solid fa-calculator"></i> Descriptive Statistics</div>
+    <div class="card">
+      <div class="card-header"><i class="fa-solid fa-sigma"></i> Summary Statistics (Numeric Columns)</div>
+      <div id="statsTable"><div class="loader-wrap"><div class="loader"></div><p>Computing…</p></div></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 4 — VISUALIZATIONS
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-charts">
+    <div class="section-title"><i class="fa-solid fa-chart-bar"></i> Interactive Visualizations</div>
+
+    <!-- Chart Builder -->
+    <div class="card chart-builder">
+      <div class="card-header"><i class="fa-solid fa-sliders"></i> Chart Builder</div>
+      <div class="builder-grid">
+
+        <div class="form-group">
+          <label><i class="fa-solid fa-chart-pie"></i> Chart Type</label>
+          <select id="chartType">
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="scatter">Scatter Plot</option>
+            <option value="histogram">Histogram</option>
+            <option value="pie">Pie / Donut Chart</option>
+            <option value="box">Box Plot</option>
+            <option value="violin">Violin Plot</option>
+            <option value="heatmap">Correlation Heatmap</option>
+            <option value="bubble">Bubble Chart</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="fgX">
+          <label><i class="fa-solid fa-x"></i> X Axis</label>
+          <select id="chartX">
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" id="fgY">
+          <label><i class="fa-solid fa-y"></i> Y Axis (numeric)</label>
+          <select id="chartY">
+            {% for c in numeric_cols %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" id="fgColor">
+          <label><i class="fa-solid fa-palette"></i> Color By (optional)</label>
+          <select id="chartColor">
+            <option value="">— None —</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" id="fgAgg">
+          <label><i class="fa-solid fa-function"></i> Aggregation</label>
+          <select id="chartAgg">
+            <option value="mean">Mean</option>
+            <option value="sum">Sum</option>
+            <option value="count">Count</option>
+            <option value="max">Max</option>
+            <option value="min">Min</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="fgSize" style="display:none">
+          <label><i class="fa-solid fa-circle"></i> Bubble Size</label>
+          <select id="chartSize">
+            <option value="">— None —</option>
+            {% for c in numeric_cols %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+
+      </div>
+      <button class="btn-primary btn-gen" id="genChartBtn">
+        <i class="fa-solid fa-bolt"></i> Generate Chart
+      </button>
+    </div>
+
+    <!-- Chart output -->
+    <div class="card" id="chartCard" style="display:none">
+      <div id="chartPlot" style="min-height:420px"></div>
+    </div>
+    <div id="chartError" class="error-box" style="display:none"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 5 — ML CLUSTERING
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-clustering">
+    <div class="section-title"><i class="fa-solid fa-circle-nodes"></i> K-Means Clustering</div>
+
+    <div class="card">
+      <div class="card-header"><i class="fa-solid fa-gear"></i> Clustering Configuration</div>
+      <div class="cluster-config">
+        <div class="form-group">
+          <label><i class="fa-solid fa-layer-group"></i> Number of Clusters (k)</label>
+          <input type="range" id="kSlider" min="2" max="10" value="3"/>
+          <span id="kVal" class="slider-val">k = 3</span>
+        </div>
+        <div class="form-group">
+          <label><i class="fa-solid fa-columns"></i> Features (select ≥ 2)</label>
+          <div class="col-checkboxes" id="clusterCols">
+            {% for c in numeric_cols %}
+            <label class="cb-label">
+              <input type="checkbox" value="{{ c }}" {% if loop.index <= 4 %}checked{% endif %}/> {{ c }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <button class="btn-primary" id="runClusterBtn">
+          <i class="fa-solid fa-play"></i> Run Clustering
+        </button>
+      </div>
+    </div>
+
+    <div id="clusterResults" style="display:none">
+      <!-- Metrics -->
+      <div class="kpi-grid kpi-cluster">
+        <div class="kpi-card" style="--accent:#6366f1">
+          <div class="kpi-icon"><i class="fa-solid fa-star"></i></div>
+          <div class="kpi-val" id="silScore">—</div>
+          <div class="kpi-label">Silhouette Score</div>
+        </div>
+        <div class="kpi-card" style="--accent:#10b981">
+          <div class="kpi-icon"><i class="fa-solid fa-percent"></i></div>
+          <div class="kpi-val" id="varExplained">—</div>
+          <div class="kpi-label">PCA Variance (PC1+PC2)</div>
+        </div>
+        <div class="kpi-card" style="--accent:#f59e0b">
+          <div class="kpi-icon"><i class="fa-solid fa-circle-nodes"></i></div>
+          <div class="kpi-val" id="kUsed">—</div>
+          <div class="kpi-label">Clusters Formed</div>
+        </div>
+      </div>
+      <!-- Charts -->
+      <div class="chart-row">
+        <div class="card"><div id="clusterScatter" style="min-height:400px"></div></div>
+        <div class="card"><div id="clusterElbow"   style="min-height:400px"></div></div>
+      </div>
+      <!-- Summary table -->
+      <div class="card">
+        <div class="card-header"><i class="fa-solid fa-table"></i> Cluster Summary</div>
+        <div class="table-scroll" id="clusterSummary"></div>
+      </div>
+    </div>
+    <div id="clusterLoader" style="display:none" class="loader-wrap"><div class="loader"></div><p>Running K-Means…</p></div>
+    <div id="clusterError" class="error-box" style="display:none"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 6 — AI INSIGHTS
+  ══════════════════════════════════════════════ -->
+  <section class="dash-section" id="sec-insights">
+    <div class="section-title"><i class="fa-solid fa-brain"></i> Automated AI Insights</div>
+    <div id="insightsLoader" class="loader-wrap"><div class="loader"></div><p>Generating insights…</p></div>
+    <div id="insightsGrid" class="insights-grid" style="display:none"></div>
+    <div id="insightsError" class="error-box" style="display:none"></div>
+  </section>
+
+</main><!-- /dash-main -->
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
