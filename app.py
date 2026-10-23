@@ -50,7 +50,10 @@ def df_from_session():
     raw = session.get("df")
     if raw is None:
         return None
-    return pd.read_json(io.StringIO(raw), orient="split")
+    try:
+        return pd.read_json(io.StringIO(raw), orient="split")
+    except Exception:
+        return None
 
 def num_cols(df):
     return df.select_dtypes(include=[np.number]).columns.tolist()
@@ -361,21 +364,37 @@ def api_cluster():
     scaler = StandardScaler()
     X = scaler.fit_transform(sub)
 
-    max_k = min(10, len(sub))
+    # Bug fix 1: max_k must be at least 2 and not exceed number of samples
+    max_k = min(10, len(sub) - 1)
+    if max_k < 2:
+        return jsonify({"error": "Not enough data rows to cluster. Need at least 3 rows."}), 400
+
+    # Bug fix 2: k must not exceed max_k
+    k = min(k, max_k)
+
     inertias, sils = [], []
-    for ki in range(2, max_k+1):
+    for ki in range(2, max_k + 1):
         km = KMeans(n_clusters=ki, random_state=42, n_init=10)
         lb = km.fit_predict(X)
         inertias.append(km.inertia_)
-        try: sils.append(silhouette_score(X, lb))
-        except: sils.append(0)
+        try:
+            sils.append(float(silhouette_score(X, lb)))
+        except Exception:
+            sils.append(0.0)
 
-    km_f = KMeans(n_clusters=k, random_state=42, n_init=10)
+    km_f   = KMeans(n_clusters=k, random_state=42, n_init=10)
     labels = km_f.fit_predict(X)
-    sil    = silhouette_score(X, labels)
+    sil    = float(silhouette_score(X, labels))
 
-    pca   = PCA(n_components=2)
-    X2d   = pca.fit_transform(X)
+    # Bug fix 3: PCA n_components must not exceed number of features
+    n_components = min(2, X.shape[1])
+    pca  = PCA(n_components=n_components)
+    X2d  = pca.fit_transform(X)
+
+    # Pad to 2D if only 1 feature was selected
+    if n_components == 1:
+        import numpy as np
+        X2d = np.column_stack([X2d, np.zeros(len(X2d))])
     pdf   = pd.DataFrame({"PC1":X2d[:,0],"PC2":X2d[:,1],
                           "Cluster":[f"Cluster {l+1}" for l in labels]})
 
@@ -401,10 +420,15 @@ def api_cluster():
     summary = sub2.groupby("Cluster").agg(["mean","count"]).round(2)
     summary.columns = [" ".join(c) for c in summary.columns]
 
+    var_exp = [round(float(v)*100, 1) for v in pca.explained_variance_ratio_]
+    # Always return 2 values for the frontend
+    while len(var_exp) < 2:
+        var_exp.append(0.0)
+
     return jsonify({
         "scatter": fig_json(fig_s), "elbow": fig_json(fig_e),
-        "silhouette": round(float(sil),4),
-        "variance_explained": [round(float(v)*100,1) for v in pca.explained_variance_ratio_],
+        "silhouette": round(sil, 4),
+        "variance_explained": var_exp,
         "cluster_summary": summary.to_html(
             classes="table table-sm table-hover align-middle", border=0),
         "k": k,
